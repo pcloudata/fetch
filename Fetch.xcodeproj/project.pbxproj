@@ -10,6 +10,7 @@
 		8A3F4E012B7A400100C0DE01 /* FetchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3F4E002B7A400100C0DE01 /* FetchApp.swift */; };
 		8A3F4E032B7A400100C0DE01 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3F4E022B7A400100C0DE01 /* ContentView.swift */; };
 		8A3F4E052B7A400100C0DE01 /* GlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3F4E042B7A400100C0DE01 /* GlassComponents.swift */; };
+		8A3F4E082B7A400100C0DE01 /* FocusTimerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3F4E072B7A400100C0DE01 /* FocusTimerStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +18,7 @@
 		8A3F4E002B7A400100C0DE01 /* FetchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchApp.swift; sourceTree = "<group>"; };
 		8A3F4E022B7A400100C0DE01 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		8A3F4E042B7A400100C0DE01 /* GlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassComponents.swift; sourceTree = "<group>"; };
+		8A3F4E072B7A400100C0DE01 /* FocusTimerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +54,7 @@
 				8A3F4E002B7A400100C0DE01 /* FetchApp.swift */,
 				8A3F4E022B7A400100C0DE01 /* ContentView.swift */,
 				8A3F4E042B7A400100C0DE01 /* GlassComponents.swift */,
+				8A3F4E072B7A400100C0DE01 /* FocusTimerStore.swift */,
 			);
 			path = Fetch;
 			sourceTree = "<group>";
@@ -127,6 +130,7 @@
 				8A3F4E012B7A400100C0DE01 /* FetchApp.swift in Sources */,
 				8A3F4E032B7A400100C0DE01 /* ContentView.swift in Sources */,
 				8A3F4E052B7A400100C0DE01 /* GlassComponents.swift in Sources */,
+				8A3F4E082B7A400100C0DE01 /* FocusTimerStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

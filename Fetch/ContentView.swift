@@ -1,11 +1,12 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var timerStore = FocusTimerStore()
     @State private var palette = LiquidPalette.moods[0]
     @State private var intensity = 0.64
-    @State private var selectedDockItem = "sparkles"
+    @State private var selectedDockItem = "timer"
 
-    private let dockItems = ["sparkles", "waveform.path.ecg", "circle.hexagongrid.fill", "person.crop.circle"]
+    private let dockItems = ["timer", "chart.bar.fill", "sparkles", "gearshape.fill"]
 
     var body: some View {
         ZStack {
@@ -14,9 +15,9 @@ struct ContentView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 18) {
                     header
-                    heroOrb
-                    moodPicker
-                    intensityControl
+                    timerHero
+                    presetPicker
+                    focusControls
                     metricGrid
                     Spacer(minLength: 92)
                 }
@@ -40,7 +41,7 @@ struct ContentView: View {
                 Text("Fetch")
                     .font(.system(size: 34, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("A tactile space for light, depth, and motion")
+                Text("Focus sessions with a liquid-glass interface")
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.white.opacity(0.66))
             }
@@ -56,83 +57,68 @@ struct ContentView: View {
         }
     }
 
-    private var heroOrb: some View {
+    private var timerHero: some View {
         GlassPanel(cornerRadius: 34) {
-            VStack(spacing: 22) {
+            VStack(spacing: 20) {
                 ZStack {
                     Circle()
-                        .fill(
-                            AngularGradient(
-                                colors: palette.colors + palette.colors.prefix(1),
-                                center: .center
-                            )
-                        )
-                        .blur(radius: 1)
-                        .opacity(0.95)
-                        .frame(width: 188, height: 188)
-                        .overlay {
-                            Circle()
-                                .stroke(.white.opacity(0.36), lineWidth: 1)
-                                .blur(radius: 0.5)
-                        }
-                        .shadow(color: palette.colors[0].opacity(0.45), radius: 42, x: 0, y: 18)
+                        .stroke(.white.opacity(0.14), lineWidth: 12)
+                        .frame(width: 210, height: 210)
 
                     Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.white.opacity(0.95), .white.opacity(0.16), .clear],
-                                center: .topLeading,
-                                startRadius: 4,
-                                endRadius: 132
-                            )
+                        .trim(from: 0, to: timerStore.progress)
+                        .stroke(
+                            AngularGradient(colors: palette.colors + palette.colors.prefix(1), center: .center),
+                            style: StrokeStyle(lineWidth: 12, lineCap: .round)
                         )
-                        .frame(width: 170, height: 170)
-                        .blendMode(.screen)
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 210, height: 210)
+                        .animation(.easeInOut(duration: 0.25), value: timerStore.progress)
 
-                    Image(systemName: palette.symbol)
-                        .font(.system(size: 42, weight: .bold))
-                        .foregroundStyle(.white)
+                    VStack(spacing: 8) {
+                        Text(timerStore.timeLabel)
+                            .font(.system(size: 44, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
+
+                        Text(phaseLabel)
+                            .font(.footnote.weight(.semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.white.opacity(0.14), in: Capsule())
+                            .foregroundStyle(.white)
+                    }
                 }
 
-                VStack(spacing: 8) {
-                    Text("\(palette.name) Surface")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.white)
-                    Text("Glass bends the background, but the controls stay crisp and reachable.")
-                        .font(.callout)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.white.opacity(0.70))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                Text("Run focused sessions, pause anytime, and let Fetch guide breaks automatically.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 28)
         }
     }
 
-    private var moodPicker: some View {
+    private var presetPicker: some View {
         GlassPanel(cornerRadius: 24) {
             HStack(spacing: 10) {
-                ForEach(LiquidPalette.moods) { mood in
+                ForEach(FocusTimerStore.Preset.options) { preset in
                     Button {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                            palette = mood
+                            timerStore.applyPreset(preset)
                         }
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: mood.symbol)
-                            Text(mood.name)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.78)
-                        }
-                        .font(.footnote.weight(.bold))
-                        .foregroundStyle(palette == mood ? .black : .white.opacity(0.86))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background {
-                            Capsule()
-                                .fill(palette == mood ? .white.opacity(0.92) : .white.opacity(0.10))
-                        }
+                        Text(preset.label)
+                            .font(.footnote.weight(.bold))
+                            .foregroundStyle(timerStore.selectedPreset == preset ? .black : .white.opacity(0.86))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background {
+                                Capsule()
+                                    .fill(timerStore.selectedPreset == preset ? .white.opacity(0.92) : .white.opacity(0.10))
+                            }
                     }
                     .buttonStyle(.plain)
                 }
@@ -141,32 +127,38 @@ struct ContentView: View {
         }
     }
 
-    private var intensityControl: some View {
+    private var focusControls: some View {
         GlassPanel(cornerRadius: 24) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("Refraction", systemImage: "slider.horizontal.3")
+            HStack(spacing: 10) {
+                Button(action: timerStore.startOrPause) {
+                    Label(primaryActionLabel, systemImage: primaryActionSymbol)
                         .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Text("\(Int(intensity * 100))%")
-                        .font(.callout.monospacedDigit().weight(.bold))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .foregroundStyle(.black)
                 }
+                .buttonStyle(.plain)
 
-                Slider(value: $intensity, in: 0.2...1.0)
-                    .tint(.white)
+                Button(action: timerStore.reset) {
+                    Image(systemName: "arrow.counterclockwise")
+                        .font(.system(size: 19, weight: .bold))
+                        .frame(width: 52, height: 52)
+                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
             }
-            .padding(18)
+            .padding(14)
         }
     }
 
     private var metricGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            MetricPill(title: "Depth", value: "42 px", symbol: "square.stack.3d.up.fill")
-            MetricPill(title: "Glow", value: "\(Int(70 + intensity * 24))%", symbol: "sun.max.fill")
-            MetricPill(title: "Blur", value: "\(Int(18 + intensity * 24))", symbol: "drop.fill")
-            MetricPill(title: "Motion", value: "Live", symbol: "gyroscope")
+            MetricPill(title: "Preset", value: timerStore.selectedPreset.label, symbol: "slider.horizontal.below.square.filled.and.square")
+            MetricPill(title: "Today", value: "\(timerStore.todayFocusMinutes) min", symbol: "clock.fill")
+            MetricPill(title: "Sessions", value: "\(timerStore.completedFocusSessions)", symbol: "checkmark.circle.fill")
+            MetricPill(title: "State", value: phaseLabel, symbol: "bolt.heart.fill")
         }
     }
 
@@ -182,6 +174,39 @@ struct ContentView: View {
                 }
             }
             .padding(10)
+        }
+    }
+
+    private var phaseLabel: String {
+        switch timerStore.phase {
+        case .idle:
+            return "Ready"
+        case .focus:
+            return "Focus"
+        case .paused:
+            return "Paused"
+        case .breakTime:
+            return "Break"
+        }
+    }
+
+    private var primaryActionLabel: String {
+        switch timerStore.phase {
+        case .idle:
+            return "Start Session"
+        case .focus, .breakTime:
+            return "Pause"
+        case .paused:
+            return "Resume"
+        }
+    }
+
+    private var primaryActionSymbol: String {
+        switch timerStore.phase {
+        case .idle, .paused:
+            return "play.fill"
+        case .focus, .breakTime:
+            return "pause.fill"
         }
     }
 }
