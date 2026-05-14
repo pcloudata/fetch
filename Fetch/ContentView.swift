@@ -22,10 +22,10 @@ struct ContentView: View {
                     focusControls
                     metricGrid
                     notificationCard
-                    Spacer(minLength: 92)
+                    Spacer(minLength: 156)
                 }
                 .padding(.horizontal, 18)
-                .padding(.top, 18)
+                .padding(.top, 48)
             }
 
             VStack {
@@ -170,6 +170,8 @@ struct ContentView: View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
             MetricPill(title: "Preset", value: timerStore.selectedPreset.label, symbol: "slider.horizontal.below.square.filled.and.square")
             MetricPill(title: "Today", value: "\(timerStore.todayFocusMinutes) min", symbol: "clock.fill")
+            MetricPill(title: "This Week", value: "\(timerStore.weeklyFocusMinutes) min", symbol: "calendar")
+            MetricPill(title: "Streak", value: "\(timerStore.streakDays) day", symbol: "flame.fill")
             MetricPill(title: "Sessions", value: "\(timerStore.completedFocusSessions)", symbol: "checkmark.circle.fill")
             MetricPill(title: "State", value: phaseLabel, symbol: "bolt.heart.fill")
         }

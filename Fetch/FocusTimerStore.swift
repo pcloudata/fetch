@@ -26,19 +26,47 @@ final class FocusTimerStore: ObservableObject {
         ]
     }
 
+    struct DailyHistoryEntry: Codable {
+        let dateKey: String
+        var focusSeconds: Int
+    }
+
+    private struct PersistedState: Codable {
+        var totalFocusSeconds: Int
+        var completedFocusSessions: Int
+        var streakDays: Int
+        var lastCompletedDateKey: String?
+        var history: [DailyHistoryEntry]
+    }
+
     @Published var phase: Phase = .idle
     @Published var selectedPreset: Preset = Preset.options[0]
     @Published var timeRemaining: Int = Preset.options[0].focusMinutes * 60
     @Published var completedFocusSessions: Int = 0
     @Published var totalFocusSeconds: Int = 0
     @Published var notificationsEnabled = false
+    @Published var streakDays = 0
 
     private var activeSegmentSeconds: Int = Preset.options[0].focusMinutes * 60
     private var timer: Timer?
     private var lastTickDate: Date?
 
+    private var history: [DailyHistoryEntry] = []
+    private var focusSecondsThisSession = 0
+    private var lastCompletedDateKey: String?
+
     private let center = UNUserNotificationCenter.current()
     private let segmentNotificationID = "fetch.segment.complete"
+    private let persistenceKey = "fetch.focus.state.v1"
+
+    private let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
 
     var progress: Double {
         guard activeSegmentSeconds > 0 else { return 0 }
@@ -52,10 +80,19 @@ final class FocusTimerStore: ObservableObject {
     }
 
     var todayFocusMinutes: Int {
-        totalFocusSeconds / 60
+        focusMinutes(forDateKey: todayDateKey)
+    }
+
+    var weeklyFocusMinutes: Int {
+        let keys = recentDateKeys(daysBack: 6)
+        let seconds = history
+            .filter { keys.contains($0.dateKey) }
+            .reduce(0) { $0 + $1.focusSeconds }
+        return seconds / 60
     }
 
     init() {
+        loadPersistedState()
         refreshNotificationAuthorizationStatus()
     }
 
@@ -99,6 +136,7 @@ final class FocusTimerStore: ObservableObject {
         phase = .idle
         activeSegmentSeconds = selectedPreset.focusMinutes * 60
         timeRemaining = activeSegmentSeconds
+        focusSecondsThisSession = 0
         lastTickDate = nil
         cancelSegmentNotification()
     }
@@ -106,6 +144,7 @@ final class FocusTimerStore: ObservableObject {
     func handleAppDidEnterBackground() {
         lastTickDate = Date()
         syncSegmentNotification()
+        persistState()
     }
 
     func handleAppDidBecomeActive() {
@@ -119,6 +158,7 @@ final class FocusTimerStore: ObservableObject {
         if timeRemaining <= 0 || timeRemaining > activeSegmentSeconds {
             timeRemaining = activeSegmentSeconds
         }
+        focusSecondsThisSession = 0
         startTimer()
         syncSegmentNotification()
         fireHaptic(.medium)
@@ -184,8 +224,11 @@ final class FocusTimerStore: ObservableObject {
 
         lastTickDate = Date()
 
+        let consumed = min(elapsed, max(0, timeRemaining))
         if phase == .focus {
-            totalFocusSeconds += min(elapsed, timeRemaining)
+            totalFocusSeconds += consumed
+            focusSecondsThisSession += consumed
+            addFocusToToday(seconds: consumed)
         }
 
         timeRemaining -= elapsed
@@ -193,6 +236,8 @@ final class FocusTimerStore: ObservableObject {
         if timeRemaining <= 0 {
             completeSegment()
         }
+
+        persistState()
     }
 
     private func completeSegment() {
@@ -201,10 +246,13 @@ final class FocusTimerStore: ObservableObject {
 
         if phase == .focus {
             completedFocusSessions += 1
+            updateStreakAfterFocusCompletion()
             fireHaptic(.heavy)
+            persistState()
             startBreak()
         } else if phase == .breakTime {
             fireHaptic(.rigid)
+            persistState()
             reset()
         }
     }
@@ -232,6 +280,93 @@ final class FocusTimerStore: ObservableObject {
 
     private func cancelSegmentNotification() {
         center.removePendingNotificationRequests(withIdentifiers: [segmentNotificationID])
+    }
+
+    private var todayDateKey: String {
+        dayFormatter.string(from: Date())
+    }
+
+    private func recentDateKeys(daysBack: Int) -> Set<String> {
+        var keys = Set<String>()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        for offset in 0...daysBack {
+            if let date = calendar.date(byAdding: .day, value: -offset, to: today) {
+                keys.insert(dayFormatter.string(from: date))
+            }
+        }
+
+        return keys
+    }
+
+    private func focusMinutes(forDateKey key: String) -> Int {
+        let seconds = history.first(where: { $0.dateKey == key })?.focusSeconds ?? 0
+        return seconds / 60
+    }
+
+    private func addFocusToToday(seconds: Int) {
+        let key = todayDateKey
+        if let index = history.firstIndex(where: { $0.dateKey == key }) {
+            history[index].focusSeconds += seconds
+        } else {
+            history.append(DailyHistoryEntry(dateKey: key, focusSeconds: seconds))
+        }
+
+        // Keep history bounded to avoid unbounded growth.
+        history = history.sorted { $0.dateKey < $1.dateKey }
+        if history.count > 90 {
+            history.removeFirst(history.count - 90)
+        }
+    }
+
+    private func updateStreakAfterFocusCompletion() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let todayKey = dayFormatter.string(from: today)
+
+        if let lastKey = lastCompletedDateKey,
+           let lastDate = dayFormatter.date(from: lastKey) {
+            let dayDiff = calendar.dateComponents([.day], from: lastDate, to: today).day ?? 0
+            if dayDiff == 0 {
+                // Same day completion; keep streak unchanged.
+            } else if dayDiff == 1 {
+                streakDays += 1
+            } else {
+                streakDays = 1
+            }
+        } else {
+            streakDays = 1
+        }
+
+        lastCompletedDateKey = todayKey
+    }
+
+    private func persistState() {
+        let state = PersistedState(
+            totalFocusSeconds: totalFocusSeconds,
+            completedFocusSessions: completedFocusSessions,
+            streakDays: streakDays,
+            lastCompletedDateKey: lastCompletedDateKey,
+            history: history
+        )
+
+        if let data = try? JSONEncoder().encode(state) {
+            UserDefaults.standard.set(data, forKey: persistenceKey)
+        }
+    }
+
+    private func loadPersistedState() {
+        guard let data = UserDefaults.standard.data(forKey: persistenceKey),
+              let state = try? JSONDecoder().decode(PersistedState.self, from: data) else {
+            return
+        }
+
+        totalFocusSeconds = state.totalFocusSeconds
+        completedFocusSessions = state.completedFocusSessions
+        streakDays = state.streakDays
+        lastCompletedDateKey = state.lastCompletedDateKey
+        history = state.history
     }
 
     private func fireHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
