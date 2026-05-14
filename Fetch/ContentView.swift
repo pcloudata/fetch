@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     @StateObject private var timerStore = FocusTimerStore()
     @State private var palette = LiquidPalette.moods[0]
     @State private var intensity = 0.64
@@ -19,6 +21,7 @@ struct ContentView: View {
                     presetPicker
                     focusControls
                     metricGrid
+                    notificationCard
                     Spacer(minLength: 92)
                 }
                 .padding(.horizontal, 18)
@@ -33,6 +36,16 @@ struct ContentView: View {
             .padding(.bottom, 14)
         }
         .preferredColorScheme(.dark)
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                timerStore.handleAppDidBecomeActive()
+            case .background:
+                timerStore.handleAppDidEnterBackground()
+            default:
+                break
+            }
+        }
     }
 
     private var header: some View {
@@ -159,6 +172,42 @@ struct ContentView: View {
             MetricPill(title: "Today", value: "\(timerStore.todayFocusMinutes) min", symbol: "clock.fill")
             MetricPill(title: "Sessions", value: "\(timerStore.completedFocusSessions)", symbol: "checkmark.circle.fill")
             MetricPill(title: "State", value: phaseLabel, symbol: "bolt.heart.fill")
+        }
+    }
+
+    private var notificationCard: some View {
+        GlassPanel(cornerRadius: 22) {
+            HStack(spacing: 12) {
+                Image(systemName: timerStore.notificationsEnabled ? "bell.badge.fill" : "bell.slash.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(.white.opacity(0.18)))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Session Alerts")
+                        .font(.callout.weight(.bold))
+                        .foregroundStyle(.white)
+                    Text(timerStore.notificationsEnabled ? "Enabled for phase transitions" : "Enable notifications for timer alerts")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.66))
+                }
+
+                Spacer()
+
+                if !timerStore.notificationsEnabled {
+                    Button("Enable") {
+                        timerStore.requestNotificationPermission()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.footnote.weight(.bold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.white.opacity(0.9), in: Capsule())
+                    .foregroundStyle(.black)
+                }
+            }
+            .padding(14)
         }
     }
 

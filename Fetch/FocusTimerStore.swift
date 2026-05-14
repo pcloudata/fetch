@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UserNotifications
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -30,9 +31,14 @@ final class FocusTimerStore: ObservableObject {
     @Published var timeRemaining: Int = Preset.options[0].focusMinutes * 60
     @Published var completedFocusSessions: Int = 0
     @Published var totalFocusSeconds: Int = 0
+    @Published var notificationsEnabled = false
 
     private var activeSegmentSeconds: Int = Preset.options[0].focusMinutes * 60
     private var timer: Timer?
+    private var lastTickDate: Date?
+
+    private let center = UNUserNotificationCenter.current()
+    private let segmentNotificationID = "fetch.segment.complete"
 
     var progress: Double {
         guard activeSegmentSeconds > 0 else { return 0 }
@@ -47,6 +53,29 @@ final class FocusTimerStore: ObservableObject {
 
     var todayFocusMinutes: Int {
         totalFocusSeconds / 60
+    }
+
+    init() {
+        refreshNotificationAuthorizationStatus()
+    }
+
+    func requestNotificationPermission() {
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, _ in
+            DispatchQueue.main.async {
+                self?.notificationsEnabled = granted
+                if granted {
+                    self?.syncSegmentNotification()
+                }
+            }
+        }
+    }
+
+    func refreshNotificationAuthorizationStatus() {
+        center.getNotificationSettings { [weak self] settings in
+            DispatchQueue.main.async {
+                self?.notificationsEnabled = settings.authorizationStatus == .authorized
+            }
+        }
     }
 
     func applyPreset(_ preset: Preset) {
@@ -70,6 +99,18 @@ final class FocusTimerStore: ObservableObject {
         phase = .idle
         activeSegmentSeconds = selectedPreset.focusMinutes * 60
         timeRemaining = activeSegmentSeconds
+        lastTickDate = nil
+        cancelSegmentNotification()
+    }
+
+    func handleAppDidEnterBackground() {
+        lastTickDate = Date()
+        syncSegmentNotification()
+    }
+
+    func handleAppDidBecomeActive() {
+        refreshElapsedTimeFromBackground()
+        cancelSegmentNotification()
     }
 
     private func startFocus() {
@@ -79,6 +120,7 @@ final class FocusTimerStore: ObservableObject {
             timeRemaining = activeSegmentSeconds
         }
         startTimer()
+        syncSegmentNotification()
         fireHaptic(.medium)
     }
 
@@ -87,12 +129,14 @@ final class FocusTimerStore: ObservableObject {
         activeSegmentSeconds = selectedPreset.breakMinutes * 60
         timeRemaining = activeSegmentSeconds
         startTimer()
+        syncSegmentNotification()
         fireHaptic(.soft)
     }
 
     private func pause() {
         phase = .paused
         stopTimer()
+        cancelSegmentNotification()
         fireHaptic(.light)
     }
 
@@ -102,15 +146,19 @@ final class FocusTimerStore: ObservableObject {
         }
         phase = (activeSegmentSeconds == selectedPreset.breakMinutes * 60) ? .breakTime : .focus
         startTimer()
+        syncSegmentNotification()
         fireHaptic(.light)
     }
 
     private func startTimer() {
         stopTimer()
+        lastTickDate = Date()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            self?.tick()
+            self?.tick(usingElapsedSeconds: 1)
         }
-        RunLoop.main.add(timer!, forMode: .common)
+        if let timer {
+            RunLoop.main.add(timer, forMode: .common)
+        }
     }
 
     private func stopTimer() {
@@ -118,24 +166,39 @@ final class FocusTimerStore: ObservableObject {
         timer = nil
     }
 
-    private func tick() {
-        guard timeRemaining > 0 else {
-            completeSegment()
+    private func refreshElapsedTimeFromBackground() {
+        guard let lastTickDate else { return }
+        guard phase == .focus || phase == .breakTime else {
+            self.lastTickDate = Date()
             return
         }
 
-        timeRemaining -= 1
+        let elapsed = Int(Date().timeIntervalSince(lastTickDate))
+        guard elapsed > 0 else { return }
+        tick(usingElapsedSeconds: elapsed)
+    }
+
+    private func tick(usingElapsedSeconds elapsed: Int) {
+        guard elapsed > 0 else { return }
+        guard phase == .focus || phase == .breakTime else { return }
+
+        lastTickDate = Date()
+
         if phase == .focus {
-            totalFocusSeconds += 1
+            totalFocusSeconds += min(elapsed, timeRemaining)
         }
 
-        if timeRemaining == 0 {
+        timeRemaining -= elapsed
+
+        if timeRemaining <= 0 {
             completeSegment()
         }
     }
 
     private func completeSegment() {
         stopTimer()
+        cancelSegmentNotification()
+
         if phase == .focus {
             completedFocusSessions += 1
             fireHaptic(.heavy)
@@ -144,6 +207,31 @@ final class FocusTimerStore: ObservableObject {
             fireHaptic(.rigid)
             reset()
         }
+    }
+
+    private func syncSegmentNotification() {
+        cancelSegmentNotification()
+        guard notificationsEnabled else { return }
+        guard phase == .focus || phase == .breakTime else { return }
+        guard timeRemaining > 0 else { return }
+
+        let content = UNMutableNotificationContent()
+        if phase == .focus {
+            content.title = "Focus session complete"
+            content.body = "Nice work. Time for a short break."
+        } else {
+            content.title = "Break complete"
+            content.body = "Ready for your next focus session."
+        }
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: TimeInterval(timeRemaining), repeats: false)
+        let request = UNNotificationRequest(identifier: segmentNotificationID, content: content, trigger: trigger)
+        center.add(request)
+    }
+
+    private func cancelSegmentNotification() {
+        center.removePendingNotificationRequests(withIdentifiers: [segmentNotificationID])
     }
 
     private func fireHaptic(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
