@@ -21,21 +21,18 @@ struct ContentView: View {
                     presetPicker
                     focusControls
                     metricGrid
-                    notificationCard
-                    Spacer(minLength: 156)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 48)
             }
-
-            VStack {
-                Spacer()
-                dock
-            }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 14)
         }
         .preferredColorScheme(.dark)
+        .safeAreaInset(edge: .bottom) {
+            dock
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+                .padding(.top, 8)
+        }
         .onChange(of: scenePhase) { _, newPhase in
             switch newPhase {
             case .active:
@@ -60,11 +57,16 @@ struct ContentView: View {
             }
 
             Spacer()
+            HStack(spacing: 10) {
+                GlassIconButton(systemName: timerStore.notificationsEnabled ? "bell.badge.fill" : "bell.slash.fill", isSelected: timerStore.notificationsEnabled) {
+                    timerStore.requestNotificationPermission()
+                }
 
-            GlassIconButton(systemName: "wand.and.stars", isSelected: true) {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
-                    palette = LiquidPalette.moods.randomElement() ?? palette
-                    intensity = Double.random(in: 0.35...0.95)
+                GlassIconButton(systemName: "wand.and.stars", isSelected: true) {
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+                        palette = LiquidPalette.moods.randomElement() ?? palette
+                        intensity = Double.random(in: 0.35...0.95)
+                    }
                 }
             }
         }
@@ -174,42 +176,6 @@ struct ContentView: View {
             MetricPill(title: "Streak", value: "\(timerStore.streakDays) day", symbol: "flame.fill")
             MetricPill(title: "Sessions", value: "\(timerStore.completedFocusSessions)", symbol: "checkmark.circle.fill")
             MetricPill(title: "State", value: phaseLabel, symbol: "bolt.heart.fill")
-        }
-    }
-
-    private var notificationCard: some View {
-        GlassPanel(cornerRadius: 22) {
-            HStack(spacing: 12) {
-                Image(systemName: timerStore.notificationsEnabled ? "bell.badge.fill" : "bell.slash.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Circle().fill(.white.opacity(0.18)))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Session Alerts")
-                        .font(.callout.weight(.bold))
-                        .foregroundStyle(.white)
-                    Text(timerStore.notificationsEnabled ? "Enabled for phase transitions" : "Enable notifications for timer alerts")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.66))
-                }
-
-                Spacer()
-
-                if !timerStore.notificationsEnabled {
-                    Button("Enable") {
-                        timerStore.requestNotificationPermission()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.footnote.weight(.bold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(.white.opacity(0.9), in: Capsule())
-                    .foregroundStyle(.black)
-                }
-            }
-            .padding(14)
         }
     }
 
