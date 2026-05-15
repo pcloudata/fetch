@@ -21,6 +21,9 @@ struct ContentView: View {
                     presetPicker
                     focusControls
                     metricGrid
+                    if selectedDockItem == "chart.bar.fill" {
+                        weeklyTrendCard
+                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 48)
@@ -176,6 +179,38 @@ struct ContentView: View {
             MetricPill(title: "Streak", value: "\(timerStore.streakDays) day", symbol: "flame.fill")
             MetricPill(title: "Sessions", value: "\(timerStore.completedFocusSessions)", symbol: "checkmark.circle.fill")
             MetricPill(title: "State", value: phaseLabel, symbol: "bolt.heart.fill")
+        }
+    }
+
+
+    private var weeklyTrendCard: some View {
+        GlassPanel(cornerRadius: 24) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Last 7 Days")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+
+                HStack(alignment: .bottom, spacing: 10) {
+                    let maxMinutes = max(timerStore.weeklyTrend.map(\.minutes).max() ?? 1, 1)
+                    ForEach(timerStore.weeklyTrend) { day in
+                        VStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(.white.opacity(0.88))
+                                .frame(height: max(10, CGFloat(day.minutes) / CGFloat(maxMinutes) * 96))
+
+                            Text(day.label)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.78))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .bottom)
+                    }
+                }
+
+                Text("\(timerStore.weeklyFocusMinutes) min this week")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+            .padding(16)
         }
     }
 

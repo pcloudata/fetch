@@ -27,6 +27,7 @@ final class FocusTimerStore: ObservableObject {
     }
 
     struct DailyHistoryEntry: Codable {
+        var id: String { dateKey }
         let dateKey: String
         var focusSeconds: Int
     }
@@ -46,6 +47,12 @@ final class FocusTimerStore: ObservableObject {
     @Published var totalFocusSeconds: Int = 0
     @Published var notificationsEnabled = false
     @Published var streakDays = 0
+
+    struct DayFocusSummary: Identifiable {
+        let id: String
+        let label: String
+        let minutes: Int
+    }
 
     private var activeSegmentSeconds: Int = Preset.options[0].focusMinutes * 60
     private var timer: Timer?
@@ -84,11 +91,25 @@ final class FocusTimerStore: ObservableObject {
     }
 
     var weeklyFocusMinutes: Int {
-        let keys = recentDateKeys(daysBack: 6)
-        let seconds = history
-            .filter { keys.contains($0.dateKey) }
-            .reduce(0) { $0 + $1.focusSeconds }
-        return seconds / 60
+        weeklyTrend.reduce(0) { $0 + $1.minutes }
+    }
+
+    var weeklyTrend: [DayFocusSummary] {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("EEE")
+
+        let today = calendar.startOfDay(for: Date())
+
+        return (0...6).reversed().compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            let key = dayFormatter.string(from: date)
+            let minutes = focusMinutes(forDateKey: key)
+            let label = formatter.string(from: date)
+            return DayFocusSummary(id: key, label: label, minutes: minutes)
+        }
     }
 
     init() {

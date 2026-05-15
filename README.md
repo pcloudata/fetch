@@ -47,4 +47,4 @@ xcodebuild -project Fetch.xcodeproj -scheme Fetch -sdk iphonesimulator -derivedD
 
 ## Notes
 
-Generated build output is intentionally ignored through `.gitignore`, including `DerivedData/`, simulator artifacts, and local Xcode user state.
+Build artifacts and local Xcode state are excluded via `.gitignore`.
