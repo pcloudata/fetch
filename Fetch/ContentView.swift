@@ -6,7 +6,7 @@ struct ContentView: View {
     @StateObject private var timerStore = FocusTimerStore()
     @State private var palette = LiquidPalette.moods[0]
     @State private var intensity = 0.64
-    @State private var selectedDockItem = "timer"
+    @State private var selectedDockItem = ProcessInfo.processInfo.arguments.contains("--chart-mode") ? "chart.bar.fill" : "timer"
 
     private let dockItems = ["timer", "chart.bar.fill", "sparkles", "gearshape.fill"]
 
@@ -20,13 +20,15 @@ struct ContentView: View {
                     timerHero
                     presetPicker
                     focusControls
-                    metricGrid
                     if selectedDockItem == "chart.bar.fill" {
-                        weeklyTrendCard
+                        statsDashboard
+                    } else {
+                        metricGrid
                     }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 48)
+                .padding(.bottom, selectedDockItem == "chart.bar.fill" ? 128 : 24)
             }
         }
         .preferredColorScheme(.dark)
@@ -183,12 +185,25 @@ struct ContentView: View {
     }
 
 
+    private var statsDashboard: some View {
+        VStack(spacing: 12) {
+            weeklyTrendCard
+            recentHistoryCard
+        }
+    }
+
     private var weeklyTrendCard: some View {
         GlassPanel(cornerRadius: 24) {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Last 7 Days")
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
+                HStack {
+                    Text("Last 7 Days")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text("\(timerStore.weeklyFocusMinutes) min")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.82))
+                }
 
                 HStack(alignment: .bottom, spacing: 10) {
                     let maxMinutes = max(timerStore.weeklyTrend.map(\.minutes).max() ?? 1, 1)
@@ -196,7 +211,7 @@ struct ContentView: View {
                         VStack(spacing: 8) {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(.white.opacity(0.88))
-                                .frame(height: max(10, CGFloat(day.minutes) / CGFloat(maxMinutes) * 96))
+                                .frame(height: max(14, CGFloat(day.minutes) / CGFloat(maxMinutes) * 116))
 
                             Text(day.label)
                                 .font(.caption2.weight(.semibold))
@@ -205,10 +220,36 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, alignment: .bottom)
                     }
                 }
+            }
+            .padding(16)
+        }
+    }
 
-                Text("\(timerStore.weeklyFocusMinutes) min this week")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.8))
+    private var recentHistoryCard: some View {
+        GlassPanel(cornerRadius: 24) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Recent Sessions")
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+
+                if timerStore.recentHistory.isEmpty {
+                    Text("No sessions yet. Start one to build your history.")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.72))
+                } else {
+                    ForEach(timerStore.recentHistory) { entry in
+                        HStack {
+                            Text(entry.label)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.86))
+                            Spacer()
+                            Text("\(entry.minutes) min")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
             }
             .padding(16)
         }

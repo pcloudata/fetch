@@ -54,6 +54,12 @@ final class FocusTimerStore: ObservableObject {
         let minutes: Int
     }
 
+    struct HistoryRow: Identifiable {
+        let id: String
+        let label: String
+        let minutes: Int
+    }
+
     private var activeSegmentSeconds: Int = Preset.options[0].focusMinutes * 60
     private var timer: Timer?
     private var lastTickDate: Date?
@@ -110,6 +116,25 @@ final class FocusTimerStore: ObservableObject {
             let label = formatter.string(from: date)
             return DayFocusSummary(id: key, label: label, minutes: minutes)
         }
+    }
+
+    var recentHistory: [HistoryRow] {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("MMM d")
+
+        return history
+            .sorted { $0.dateKey > $1.dateKey }
+            .prefix(10)
+            .compactMap { entry in
+                guard let date = dayFormatter.date(from: entry.dateKey) else { return nil }
+                return HistoryRow(
+                    id: entry.dateKey,
+                    label: formatter.string(from: date),
+                    minutes: entry.focusSeconds / 60
+                )
+            }
     }
 
     init() {
